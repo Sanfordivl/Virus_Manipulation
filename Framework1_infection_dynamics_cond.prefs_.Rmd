@@ -1,0 +1,949 @@
+---
+title: "Economic Impact of Virus-influenced Vector Preferences: Framework #1"
+author: "Richard Gomulkiewicz, Sanford Eigenbrode"
+date: "28 September 2018 to Oct. 16"
+output:
+  pdf_document: default
+  html_document: default
+  word_document: default
+---
+
+```{r, echo=F}
+## Turn scientific notation off for printing
+options(scipen = 999)
+## Load the deSolve library		
+library(deSolve)
+```
+
+In Roosien et al. (2013), we modeled the spread of an aphid-vectored plant virus and how that spread is impacted by virus-influenced vector preferences for or against infected host plants.  Here we consider potential economic impacts of vector control based on the dynamics of virus spread described by those models.
+
+
+To model the dynamics of virus spread, we will use a simplified version of equations [1] from Roosien et al. (2013) assuming no loss (or recovery) of infected hosts or vectors and that innocualtive and non-innoculative vectors have the same preference for infected host plants:  
+
+\begin{subequations}
+\begin{align}
+\frac{dI}{dt} & = \frac{\phi_p Z(1-I)}{1-I+I\rho_+}  \label{infect} \\
+\frac{dZ}{dt} & = \frac{\phi_v (1-Z)I\rho_-}{1-I+I\rho_-}  \label{innoc}
+\end{align}
+\end{subequations}
+
+In these equations, $I(t)$ is the fraction of infected host plants at time $t$, $Z(t)$ is the fraction of innoculative vectors at time $t$, $\phi_p$ is the virus-to-plant transmission rate, $\phi_v$ is the plant-to-virus transmission rate, and $\rho_+$ is the relative preference that infectious vectors have for infected hosts and $\rho_-$ is the relative preference that noninfectious vectors have for infected hosts
+
+
+```{r, echo=F}
+
+#parameter values common to all cases
+
+phi.p <- 0.1	#vector-to-plant transmission
+phi.v <- 0.1 #plant-to-vector transmission
+#
+
+last.time <- 200 #last day of season
+time <- seq(0,last.time, by = 0.1) #time points during growing season
+
+
+#####################################################
+#infection dynamics
+
+IZdyn <- function(t, y, p){
+	I <- y[1]
+	Z <- y[2]
+	with(as.list(p),{
+		dI.dt <- phi.p*Z*(1-I)/(1-I+I*rho.i)
+		dZ.dt <- phi.v*(1-Z)*I*rho.n/(1-I+I*rho.n)
+		return(list(c(dI.dt, dZ.dt)))
+		})
+	}
+
+#parameter values
+parms.iz <- c(phi.p = phi.p, phi.v = phi.v)
+
+# case 0: no host preference by either vector state
+rho.i.0 <- 1.0
+rho.n.0 <- 1.0
+# case 1: Infectious vectors prefer infected plants and noninfectious vectors prefer healthy plants - PLRV values from Roosien et al.
+rho.i.1 <- 3.2
+rho.n.1 <- 0.5
+# case 2: Infectious vectors prefer healthy plants and noninfectious vectors prefer inftected plants
+rho.i.2 <- 0.5
+rho.n.2 <- 3.2
+# case 3: All prefer healthy plants
+rho.i.3 <- 0.5
+rho.n.3 <- 0.5
+# case 4: All prefer infected plants
+rho.i.4 <- 3.2
+rho.n.4 <- 3.2
+
+parms.iz.0 <- c(parms.iz,rho.i = rho.i.0, rho.n = rho.n.0)
+parms.iz.1 <- c(parms.iz,rho.i = rho.i.1, rho.n = rho.n.1)
+parms.iz.2 <- c(parms.iz,rho.i = rho.i.2, rho.n = rho.n.2)
+parms.iz.3 <- c(parms.iz,rho.i = rho.i.3, rho.n = rho.n.3)
+parms.iz.4 <- c(parms.iz,rho.i = rho.i.4, rho.n = rho.n.4)
+
+#solve the differential equations
+#I0 and Z0 are initial frequencies of infected plants and innocualtive vectors
+IZ.out.0 <- ode(c(I0 = 0, Z0 = 0.01), time, IZdyn, parms.iz.0)
+IZ.out.1 <- ode(c(I0 = 0, Z0 = 0.01), time, IZdyn, parms.iz.1)
+IZ.out.2 <- ode(c(I0 = 0, Z0 = 0.01), time, IZdyn, parms.iz.2)
+IZ.out.3 <- ode(c(I0 = 0, Z0 = 0.01), time, IZdyn, parms.iz.3)
+IZ.out.4 <- ode(c(I0 = 0, Z0 = 0.01), time, IZdyn, parms.iz.4)
+```
+
+The next figure shows the joint dynamics of spread in the host and vector assuming the virus is introduced by the vector in a disease-free population of host plants. The plot assumes parameter values $\phi_p = `r phi.p`$, $\phi_v = `r phi.v`$, $\rho_{+} = `r rho.i.2`$, and $\rho_{-} = `r rho.n.2`$.
+
+\bigskip
+
+```{r, echo=FALSE}
+#peek at initial 10 steps of output to see if it makes numerical sense
+#IZ.out.0[1:10,]
+
+matplot(time, IZ.out.2[,2:3],type = "l", ylab = "Proportion Infected",xlab = "Day",
+        main = "Virus Spread in Hosts and Vectors")
+legend("bottomright",c("Host Plant","Insect Vector"), lty=1:2,bty="n",col=1:2)
+```
+
+\bigskip
+
+
+In this figure, we compare the spread of the virus in the host for different virus-influenced vector preferences. Infectious vectors and noninfectious vectors may prefer infected or healthy plants. This sort of dynamic preference has been documented for several vectors of plant pathogens. The next figure compares the dynamics of virus spread within the host assuming (a) infectious vectors prefer infected hosts ($\rho_+>1$) while non-infectious vectors prefer healthy hosts ($\rho_-<1$), (b) the reverse of that ($\rho_+<1$, $\rho_->1$), (c) all vectors prefer infected hosts ($\rho_+ = \rho_->1$), (d) all vectors prefer healthy hosts ($\rho_+ = \rho_- < 1$), or (e) that there is no preference for either type of vector ($\rho_- = \rho_+ = 1$). 
+
+\bigskip
+```{r, echo=FALSE}
+plot(time, IZ.out.0[,2],type = "l", ylab = "Proportion Infected Hosts", xlab = "Day", col = "darkblue", main = "Effect of Conditional Vector Preference on Disease Spread")
+points(time,IZ.out.1[,2],type = "l",col = "purple")
+points(time,IZ.out.2[,2],type = "l",col = "lightblue")
+points(time,IZ.out.3[,2],type = "l",col = "red")
+points(time,IZ.out.4[,2],type = "l",col = "green")
+legend("bottomright",c(expression(rho["+"]~" = "~rho["-"]~"= 1"), expression(rho["+"]~"> 1, "~rho["-"]~"< 1"),expression(rho["+"]~"< 1, "~rho["-"]~"> 1"),expression(rho["+"]~" = "~rho["-"]~"< 1"),expression(rho["+"]~" = "~rho["-"]~"> 1")),lty=1,col=c("darkblue","purple","lightblue","red","green"),bty="n")
+```
+
+This shows that the virus initially spreads most rapidly when noninfectious vectors prefer infected hosts ($\rho_->1$). When the disease is prevalent, its spread continues most quickly if infectious vectors prefer healthy hosts ($\rho_+<1$).  This explains why the disease spread is overall fastest when preferences are conditional such that infectious vectors prefer healthy hosts and noninfectious vectors prefer infected hosts ( ($\rho_+<1$ and $\rho_->1$).  The converse of this logic explains why the slowest spread occurs when  infectious vectors prefer infected hosts and noninfectious vectors prefer healthy hosts ($\rho_+>1$ and $\rho_-<1$).
+
+\section{} 
+**Economic Value of Vector Treatment**
+
+```{r, echo=FALSE}
+#####################################################
+#yield given treatment at time t
+
+# per capita yield if infected at time t
+# modeled as a sigmoidal curve
+alpha <- 10
+k <- 1
+X <- function(t,alpha=alpha,k=k){
+  #k determines the maximal steepness of increase
+  #alpha is the the abscissa corresponding to ordinate value 1/2
+  (t^k)/((alpha^k) + (t^k))
+}
+```
+
+The basic premise is that a plant infected early in the season yields less than one infected late in the season.  Let $X(t)$ be the per capita yield of a plant infected at time $t$.  We assume $X(t)$ is expressed relative to the maximum acheivable per capita yield for the year so its value range is $0 \le X(t) \le 1$.  Based on the graph depicted in Figure A, we use a sigmoidal curve \(X(t) = t^k/(t^k + \alpha^k)\) which reaches half its maximum value at $t = \alpha$. The parameter $k > 0$ determines the maximum steepness.  Setting $\alpha = `r alpha`$ and $k = `r k`$ gives the following relative per capita yield curve:
+
+```{r, echo=FALSE}
+plot(time,X(t=time,alpha=alpha,k=k),type="l",ylab="relative per capita yield",xlab="days post emergence")
+```
+
+Now consider the total relative yield produced given perfect vector control applied at time $t$.  The relative abundance of hosts newly infected at time $t$ is approximately $\frac{dI}{dt}(t) \cdot \Delta t$, where $\frac{dI}{dt}(t)$ is defined in equation (\ref{infect}) and $\Delta t$ is a small time increment; the corresponding relative yield is $X(t) \cdot \frac{dI}{dt}(t)\cdot \Delta t$.  The total yield for a vector control measure applied at time $t$, should equal the yields of all plant infected up until that time plus that from hosts who escape infection (and thus attain maximum per capita yield).  The former is $\int_0^t X(\tau) \frac{dI}{dt}(\tau) d\tau$ and the latter is $1-I(t)$ since the maximum relative per capita yield is 1. These arguments show that the total relative yield for applying vector control at time $t$, $Y(t)$, is
+\begin{equation} \label{yield}
+Y(t) = \int_0^t X(\tau) \frac{dI}{dt}(\tau) d\tau + 1-I(t).
+\end{equation}
+
+Equation (\ref{yield}) is the solution of the initial value problem 
+
+\begin{equation} \label{yield.ivp}
+\frac{dY}{dt} = (X-1) \frac{dI}{dt} = (X-1)\frac{\phi_p Z(1-I)}{1-I+I\rho_+}
+\end{equation}
+
+with initial value $Y(0) = 1$.  
+
+A relatively straightforward way to compute the projected relative yields is to simultaneously solve equations (\ref{infect}), (\ref{innoc}), and (\ref{yield.ivp}).  Doing this provides the following projected relative yields:
+
+```{r, echo=FALSE}
+## Solve simultaneously for I, Z, and Y
+IZYdyn <- function(t, y, p){
+	I <- y[1]
+	Z <- y[2]
+	Y <- y[3]
+	with(as.list(p),{
+		dI.dt <- phi.p*Z*(1-I)/(1-I+I*rho.i)
+		dZ.dt <- phi.v*(1-Z)*I*rho.n/(1-I+I*rho.n)
+    dY.dt <- (X(t,alpha=alpha,k=k)-1)*dI.dt
+		#dY.dt <- 0.1*dI.dt
+		return(list(c(dI.dt, dZ.dt,dY.dt)))
+		})
+	}
+
+# parameter values
+
+# shared parameters
+phi.p <- 0.1	#virus-to-plant transmission
+phi.v <- 0.1 #plant-to-virus transmission
+last.time <- 200 #last day of season
+time <- seq(0,last.time, by = 0.1) #time points during growing season
+parms.shared <- c(alpha = alpha, k = k,phi.p = phi.p, phi.v = phi.v)
+
+# case 0: no host preference by either vector state
+rho.i.0 <- 1
+rho.n.0 <- 1
+# case 1: Infectious vectors prefer infected plants and noninfectious vectors prefer healthy plants - PLRV values from Roosien et al.
+rho.i.1 <- 2
+rho.n.1 <- 0.5
+# case 2: Infectious vectors prefer healthy plants and noninfectious vectors prefer inftected plants
+rho.i.2 <- 0.5
+rho.n.2 <- 2
+# case 3: All prefer healthy plants
+rho.i.3 <- 0.5
+rho.n.3 <- 0.5
+# case 4: All prefer infected plants
+rho.i.4 <- 2
+rho.n.4 <- 2
+
+parms.izy.0 <- c(parms.shared,rho.i = rho.i.0, rho.n = rho.n.0)
+parms.izy.1 <- c(parms.shared,rho.i = rho.i.1, rho.n = rho.n.1)
+parms.izy.2 <- c(parms.shared,rho.i = rho.i.2, rho.n = rho.n.2)
+parms.izy.3 <- c(parms.shared,rho.i = rho.i.3, rho.n = rho.n.3)
+parms.izy.4 <- c(parms.shared,rho.i = rho.i.4, rho.n = rho.n.4)
+
+#solve the differential equations
+#I0 and Z0 are initial frequencies of infected plants and innocualtive vectors
+#Initial yield for treatment is equal to the max
+IZY.out.0 <- ode(c(I0 = 0, Z0 = 0.01, Y0=1), time, IZYdyn, parms.izy.0)
+IZY.out.1 <- ode(c(I0 = 0, Z0 = 0.01, Y0=1), time, IZYdyn, parms.izy.1)
+IZY.out.2 <- ode(c(I0 = 0, Z0 = 0.01, Y0=1), time, IZYdyn, parms.izy.2)
+IZY.out.3 <- ode(c(I0 = 0, Z0 = 0.01, Y0=1), time, IZYdyn, parms.izy.3)
+IZY.out.4 <- ode(c(I0 = 0, Z0 = 0.01, Y0=1), time, IZYdyn, parms.izy.4)
+
+#peek at initial 10 steps of output to see if it makes numerical sense
+#IZY.out[1:10,]
+
+treat.cost <- 0.85
+plot(time, IZY.out.0[,4],type = "l", ylab = "Relative Yield",xlab = "Day of Treatment", col = "darkblue",
+     ylim = c(0.75,1),main = "Effect of Vector Preferences on Yield")
+points(time,IZY.out.1[,4],type = "l",lty=1, col = "purple")
+points(time,IZY.out.2[,4],type = "l",lty=1, col = "lightblue")
+points(time,IZY.out.3[,4],type = "l",lty=1, col = "red")
+points(time,IZY.out.4[,4],type = "l",lty=1, col = "green")
+abline(h=treat.cost,lty=3)
+legend("topright",c(expression(rho["+"]~" = "~rho["-"]~"= 1"), expression(rho["+"]~"> 1, "~rho["-"]~"< 1"),expression(rho["+"]~"< 1, "~rho["-"]~"> 1"),expression(rho["+"]~" = "~rho["-"]~"< 1"),expression(rho["+"]~" = "~rho["-"]~"> 1")),lty=1,col=c("darkblue","purple","lightblue","red","green"),bty="n")
+```
+
+Shown are the gross relative yields for applying vector control at time $t$ in systems where (a) infectious vectors prefer infected hosts ($\rho_+>1$) while non-infectious vectors prefer healthy hosts ($\rho_-<1$), (b) the reverse of that ($\rho_+<1$, $\rho_->1$), (c) all vectors prefer infected hosts ($\rho_+ = \rho_->1$), (d) all vectors prefer healthy hosts ($\rho_+ = \rho_- < 1$), or (e) that there is no preference for either type of vector ($\rho_- = \rho_+ = 1$). The dotted horizontal line shows a hypothetical fixed cost for using the control measures.  Net yield can be visualized as the vertical distance between this line and the relative yield curve.
+
+Another way to visualize the results is in terms of the yield loss that is prevented by treating at time $t$  (i.e, the yield above that achieved without treatment): 
+
+```{r, echo=F}
+minyield.0 <- IZY.out.0[dim(IZY.out.0)[1],4]
+minyield.1 <- IZY.out.1[dim(IZY.out.1)[1],4]
+minyield.2 <- IZY.out.2[dim(IZY.out.2)[1],4]
+minyield.3 <- IZY.out.3[dim(IZY.out.3)[1],4]
+minyield.4 <- IZY.out.4[dim(IZY.out.4)[1],4]
+
+plot(time, IZY.out.0[,4]-minyield.0,type = "l",ylim = c(0,0.25), ylab = "Preventable Yield Loss",xlab = "Day of Treatment",col = "darkblue",main = "Effect of Vector Preferences on Preventable Yield Loss by Spraying")
+points(time,IZY.out.1[,4]-minyield.1,type = "l",col="purple")
+points(time,IZY.out.2[,4]-minyield.2,type = "l",col="lightblue")
+points(time,IZY.out.3[,4]-minyield.3,type = "l",col="red")
+points(time,IZY.out.4[,4]-minyield.4,type = "l",col="green")
+legend("topright",c(expression(rho["+"]~" = "~rho["-"]~"= 1"), expression(rho["+"]~"> 1, "~rho["-"]~"< 1"),expression(rho["+"]~"< 1, "~rho["-"]~"> 1"),expression(rho["+"]~" = "~rho["-"]~"< 1"),expression(rho["+"]~" = "~rho["-"]~"> 1")),lty=1,col=c("darkblue","purple","lightblue","red","green"),bty="n")
+```
+
+```{r, echo=F}
+max.income <- 200
+treat.cost <- 20
+```
+
+A third way to interpret these results is in terms of the net economic returns for spraying at time $t$.  The next figure assumes a hypothetical maximum income per acre is $\(`r max.income`\) and a cost of insecticide treatment is $\(`r treat.cost`\) per acre.
+
+```{r, echo=F}
+
+plot(time, max.income*(IZY.out.0[,4]-minyield.0)-treat.cost,type = "l",col = "darkblue",ylim = c(-treat.cost,0.15*max.income), ylab = "Returns ($ per acre)",xlab = "Day of Treatment",main = "Effect of Vector Preferences on Returns for Spraying")
+points(time, max.income*(IZY.out.1[,4]-minyield.1)-treat.cost,type = "l",col="purple")
+points(time,max.income*(IZY.out.2[,4]-minyield.2)-treat.cost,type = "l",col="lightblue")
+points(time,max.income*(IZY.out.3[,4]-minyield.3)-treat.cost,type = "l",col="red")
+points(time,max.income*(IZY.out.4[,4]-minyield.4)-treat.cost,type = "l",col="green")
+legend("topright",c(expression(rho["+"]~" = "~rho["-"]~"= 1"), expression(rho["+"]~"> 1, "~rho["-"]~"< 1"),expression(rho["+"]~"< 1, "~rho["-"]~"> 1"),expression(rho["+"]~" = "~rho["-"]~"< 1"),expression(rho["+"]~" = "~rho["-"]~"> 1")),lty=1,col=c("darkblue","purple","lightblue","red","green"),bty="n")
+abline(h=0,lty=2)
+```
+
+---
+#CASE STUDIES
+
+The following outputs use this modeling framework and parameterize it based on data on yield loss from infection dynamics and vector preferences for infected and noninfected plants gleaned from our experimental data and published results from these systems.
+
+# Pulse viruses, pea, pea aphid
+
+## Parameters and sources
+$\rho_+$, $\rho_-$, Age-related tolerance function - Michaelis Menten with: k = 1; alpha = 10, estimated based on Stokes et al. (2012) and Paudel et al. (2018) 
+Net returns per acre are based on enterprise budgets accessed through AgBiz Logic, https://www.agbizlogic.com, OSU:
+Yield: 1800lbs
+Price: $0.12
+Value: $250.00
+Cost for treatment: $30
+ 
+### plots
+```{r, echo=F}
+
+#parameter values common to all cases
+
+phi.p <- 0.1	#vector-to-plant transmission
+phi.v <- 0.1 #plant-to-vector transmission
+#
+
+last.time <- 200 #last day of season
+time <- seq(0,last.time, by = 0.1) #time points during growing season
+
+
+#####################################################
+#infection dynamics
+
+IZdyn <- function(t, y, p){
+	I <- y[1]
+	Z <- y[2]
+	with(as.list(p),{
+		dI.dt <- phi.p*Z*(1-I)/(1-I+I*rho.i)
+		dZ.dt <- phi.v*(1-Z)*I*rho.n/(1-I+I*rho.n)
+		return(list(c(dI.dt, dZ.dt)))
+		})
+	}
+
+#parameter values
+parms.iz <- c(phi.p = phi.p, phi.v = phi.v)
+
+# case 0: no host preference by either vector state
+rho.i.0 <- 1.0
+rho.n.0 <- 1.0
+# case 1: Infectious vectors prefer infected plants and noninfectious vectors prefer healthy plants - PLRV values from Roosien et al.
+rho.i.1 <- 3.2
+rho.n.1 <- 0.5
+# case 2: Infectious vectors prefer healthy plants and noninfectious vectors prefer inftected plants PEA ONLY - USE
+rho.i.2 <- 0.62
+rho.n.2 <- 1.6
+# case 3: All prefer healthy plants
+rho.i.3 <- 0.5
+rho.n.3 <- 0.5
+# case 4: All prefer infected plants
+rho.i.4 <- 3.2
+rho.n.4 <- 3.2
+
+parms.iz.0 <- c(parms.iz,rho.i = rho.i.0, rho.n = rho.n.0)
+parms.iz.1 <- c(parms.iz,rho.i = rho.i.1, rho.n = rho.n.1)
+parms.iz.2 <- c(parms.iz,rho.i = rho.i.2, rho.n = rho.n.2)
+parms.iz.3 <- c(parms.iz,rho.i = rho.i.3, rho.n = rho.n.3)
+parms.iz.4 <- c(parms.iz,rho.i = rho.i.4, rho.n = rho.n.4)
+
+#solve the differential equations
+#I0 and Z0 are initial frequencies of infected plants and innocualtive vectors
+IZ.out.0 <- ode(c(I0 = 0, Z0 = 0.01), time, IZdyn, parms.iz.0)
+IZ.out.1 <- ode(c(I0 = 0, Z0 = 0.01), time, IZdyn, parms.iz.1)
+IZ.out.2 <- ode(c(I0 = 0, Z0 = 0.01), time, IZdyn, parms.iz.2)
+IZ.out.3 <- ode(c(I0 = 0, Z0 = 0.01), time, IZdyn, parms.iz.3)
+IZ.out.4 <- ode(c(I0 = 0, Z0 = 0.01), time, IZdyn, parms.iz.4)
+```
+
+\bigskip
+
+Spread of the virus in the host for different virus-influenced vector preferences as observed for *Pea enation mosaic virus* or *Bean leaf roll virus* in pea: infectious vectors prefer healthy hosts ($\rho_+>1$) while non-infectious vectors prefer infected hosts ($\rho_+<1$, $\rho_->1$). This is compared with the null expectation that there is no preference for either type of vector ($\rho_- = \rho_+ = 1$). 
+
+\bigskip
+```{r, echo=FALSE}
+plot(time, IZ.out.0[,2],type = "l", ylab = "Proportion Infected Hosts", xlab = "Day", lwd=2,col = "darkblue", main = "Effect of Conditional Vector Preference on Disease Spread")
+#points(time,IZ.out.1[,2],type = "l",col = "purple")
+points(time,IZ.out.2[,2],lwd=2,type = "l",col = "green")
+#points(time,IZ.out.3[,2],type = "l",col = "red")
+points(time,IZ.out.4[,2],lwd=2,type = "l",col = "lightblue")
+legend("bottomright",c(expression(rho["+"]~" = "~rho["-"]~"= 1"),expression(rho["+"]~"< 1, "~rho["-"]~"> 1"), expression(rho["+"]~"> 1, "~rho["-"]~"> 1")),lwd=2,lty=1,col=c("darkblue","green","lightblue"),bty="n")
+```
+
+\section{} 
+**Economic Value of Vector Treatment**
+
+```{r, echo=FALSE}
+#####################################################
+#yield given treatment at time t
+
+# per capita yield if infected at time t
+# modeled as a sigmoidal curve
+alpha <- 10
+k <- 1
+X <- function(t,alpha=alpha,k=k){
+  #k determines the maximal steepness of increase
+  #alpha is the the abscissa corresponding to ordinate value 1/2
+  (t^k)/((alpha^k) + (t^k))
+}
+```
+
+This function approximates what has been reported for pea and infection by the two viruses (Stokes 2012). 
+
+```{r, echo=FALSE}
+plot(time,X(t=time,alpha=alpha,k=k),type="l",ylab="relative per capita yield",xlab="days post emergence")
+```
+
+Projected relative yields:
+
+```{r, echo=FALSE}
+## Solve simultaneously for I, Z, and Y
+IZYdyn <- function(t, y, p){
+	I <- y[1]
+	Z <- y[2]
+	Y <- y[3]
+	with(as.list(p),{
+		dI.dt <- phi.p*Z*(1-I)/(1-I+I*rho.i)
+		dZ.dt <- phi.v*(1-Z)*I*rho.n/(1-I+I*rho.n)
+    dY.dt <- (X(t,alpha=alpha,k=k)-1)*dI.dt
+		return(list(c(dI.dt, dZ.dt,dY.dt)))
+		})
+	}
+
+# parameter values
+
+# shared parameters
+phi.p <- 0.1	#virus-to-plant transmission
+phi.v <- 0.1 #plant-to-virus transmission
+last.time <- 200 #last day of season
+time <- seq(0,last.time, by = 0.1) #time points during growing season
+parms.shared <- c(alpha = alpha, k = k,phi.p = phi.p, phi.v = phi.v)
+
+# case 0: no host preference by either vector state
+rho.i.0 <- 1
+rho.n.0 <- 1
+# case 1: Infectious vectors prefer infected plants and noninfectious vectors prefer healthy plants - PLRV values from Roosien et al.
+rho.i.1 <- 3.2
+rho.n.1 <- 0.5
+# case 2: Infectious vectors prefer healthy plants and noninfectious vectors prefer inftected plants
+rho.i.2 <- 0.5
+rho.n.2 <- 3.2
+# case 3: All prefer healthy plants
+rho.i.3 <- 0.5
+rho.n.3 <- 0.5
+# case 4: All prefer infected plants
+rho.i.4 <- 3.2
+rho.n.4 <- 3.2
+
+parms.izy.0 <- c(parms.shared,rho.i = rho.i.0, rho.n = rho.n.0)
+parms.izy.1 <- c(parms.shared,rho.i = rho.i.1, rho.n = rho.n.1)
+parms.izy.2 <- c(parms.shared,rho.i = rho.i.2, rho.n = rho.n.2)
+parms.izy.3 <- c(parms.shared,rho.i = rho.i.3, rho.n = rho.n.3)
+parms.izy.4 <- c(parms.shared,rho.i = rho.i.4, rho.n = rho.n.4)
+
+#solve the differential equations
+#I0 and Z0 are initial frequencies of infected plants and innocualtive vectors
+#Initial yield for treatment is equal to the max
+IZY.out.0 <- ode(c(I0 = 0, Z0 = 0.01, Y0=1), time, IZYdyn, parms.izy.0)
+IZY.out.1 <- ode(c(I0 = 0, Z0 = 0.01, Y0=1), time, IZYdyn, parms.izy.1)
+IZY.out.2 <- ode(c(I0 = 0, Z0 = 0.01, Y0=1), time, IZYdyn, parms.izy.2)
+IZY.out.3 <- ode(c(I0 = 0, Z0 = 0.01, Y0=1), time, IZYdyn, parms.izy.3)
+IZY.out.4 <- ode(c(I0 = 0, Z0 = 0.01, Y0=1), time, IZYdyn, parms.izy.4)
+
+#peek at initial 10 steps of output to see if it makes numerical sense
+#IZY.out[1:10,]
+
+treat.cost <- 0.85
+plot(time, IZY.out.0[,4],type = "l", ylab = "Relative Yield",xlab = "Day of Treatment", lwd=2,col = "darkblue",
+     ylim = c(0.75,1),main = "Effect of Vector Preferences on Yield")
+#points(time,IZY.out.1[,4],type = "l",lty=1, col = "purple")
+points(time,IZY.out.2[,4],type = "l",lty=1, lwd=2,col = "green")
+#points(time,IZY.out.3[,4],type = "l",lty=1, col = "red")
+points(time,IZY.out.4[,4],type = "l",lty=1, lwd=2, col = "lightblue")
+#abline(h=treat.cost,lty=3)
+legend("topright",c(expression(rho["+"]~" = "~rho["-"]~"= 1"),expression(rho["+"]~"< 1, "~rho["-"]~"> 1"), expression(rho["+"]~"> 1, "~rho["-"]~"> 1")),lwd=2,lty=1,col=c("darkblue","green","lightblue"),bty="n")
+```
+Preventable yield loss
+
+
+```{r, echo=F}
+minyield.0 <- IZY.out.0[dim(IZY.out.0)[1],4]
+minyield.1 <- IZY.out.1[dim(IZY.out.1)[1],4]
+minyield.2 <- IZY.out.2[dim(IZY.out.2)[1],4]
+minyield.3 <- IZY.out.3[dim(IZY.out.3)[1],4]
+minyield.4 <- IZY.out.4[dim(IZY.out.4)[1],4]
+
+plot(time, IZY.out.0[,4]-minyield.0,type = "l",ylim = c(0,0.25), ylab = "Preventable Yield Loss",xlab = "Day of Treatment",lwd=2,col = "darkblue",main = "Effect of Vector Preferences on Preventable Yield Loss by Spraying")
+#points(time,IZY.out.1[,4]-minyield.1,type = "l",col="green")
+points(time,IZY.out.2[,4]-minyield.2,lwd=2,type = "l",col="green")
+#points(time,IZY.out.3[,4]-minyield.3,type = "l",col="red")
+points(time,IZY.out.4[,4]-minyield.4,type = "l",lwd=2,col="lightblue")
+legend("topright",c(expression(rho["+"]~" = "~rho["-"]~"= 1"),expression(rho["+"]~"< 1, "~rho["-"]~"> 1"), expression(rho["+"]~"> 1, "~rho["-"]~"> 1")),lwd=2,lty=1,col=c("darkblue","green","lightblue"),bty="n")
+```
+
+```{r, echo=F}
+max.income <- 250
+treat.cost <- 20
+```
+
+Returns for spraying
+
+```{r, echo=F}
+
+plot(time, max.income*(IZY.out.0[,4]-minyield.0)-treat.cost,type = "l",lwd=2,col = "darkblue",ylim = c(-treat.cost,0.20*max.income), ylab = "Returns ($ per acre)",xlab = "Day of Treatment",main = "Effect of Vector Preferences on Returns for Spraying")
+#points(time, max.income*(IZY.out.1[,4]-minyield.1)-treat.cost,type = "l",col="purple")
+points(time,max.income*(IZY.out.2[,4]-minyield.2)-treat.cost,type = "l",lwd=2,col="green")
+#points(time,max.income*(IZY.out.3[,4]-minyield.3)-treat.cost,type = "l",col="red")
+points(time,max.income*(IZY.out.4[,4]-minyield.4)-treat.cost,type = "l",lwd=2,col="lightblue")
+legend("topright",c(expression(rho["+"]~" = "~rho["-"]~"= 1"),expression(rho["+"]~"< 1, "~rho["-"]~"> 1"), expression(rho["+"]~"> 1, "~rho["-"]~"> 1")),lwd=2,lty=1,col=c("darkblue","green","lightblue"),bty="n")
+abline(h=0,lty=2)
+```
+
+# Lso in Potato
+
+## Parameters and sources
+$\rho_+$ = 2.33, $\rho_-$=0.44, are based on Mas et al. (2014) for preference for tomato plants infected by *Candidatus* Liberibacter solanacearum by tomato potato psyllid (TPP) *Bactericera cockerelli* before and after it has acquired the pathogen. Age-related tolerance function - Michaelis Menten with: *k* = 1.69; $\alpha$ = 511.1, estimated based on data from Rashed et al. (2014).
+
+Net returns per acre are based on enterprise budgets accessed through AgBiz Logic, https://www.agbizlogic.com, Seavert et al. Oregon State University:  
+  
+  Yield: 450 cwt  
+  Price: $7.25  
+  Value/acre: $3,080  
+  Expenses/acre-chemicals:$1,635  
+  Cost for treatment: $350
+ 
+### plots
+```{r, echo=F}
+
+#parameter values common to all cases
+
+phi.p <- 0.1	#vector-to-plant transmission
+phi.v <- 0.1 #plant-to-vector transmission
+#
+
+last.time <- 200 #last day of season
+time <- seq(0,last.time, by = 0.1) #time points during growing season
+
+
+#####################################################
+#infection dynamics
+
+IZdyn <- function(t, y, p){
+	I <- y[1]
+	Z <- y[2]
+	with(as.list(p),{
+		dI.dt <- phi.p*Z*(1-I)/(1-I+I*rho.i)
+		dZ.dt <- phi.v*(1-Z)*I*rho.n/(1-I+I*rho.n)
+		return(list(c(dI.dt, dZ.dt)))
+		})
+	}
+
+#parameter values
+parms.iz <- c(phi.p = phi.p, phi.v = phi.v)
+
+# case 0: no host preference by either vector state
+rho.i.0 <- 1.0
+rho.n.0 <- 1.0
+# case 1: Infectious vectors prefer infected plants and noninfectious vectors prefer healthy plants - PLRV values from Roosien et al.
+rho.i.1 <- 3.2
+rho.n.1 <- 0.5
+# case 2: Infectious vectors prefer healthy plants and noninfectious vectors prefer infected plants LSO
+rho.i.2 <- 0.44
+rho.n.2 <- 2.33
+# case 3: All prefer healthy plants
+rho.i.3 <- 0.5
+rho.n.3 <- 0.5
+# case 4: All prefer infected plants
+rho.i.4 <- 3.2
+rho.n.4 <- 3.2
+
+parms.iz.0 <- c(parms.iz,rho.i = rho.i.0, rho.n = rho.n.0)
+parms.iz.1 <- c(parms.iz,rho.i = rho.i.1, rho.n = rho.n.1)
+parms.iz.2 <- c(parms.iz,rho.i = rho.i.2, rho.n = rho.n.2)
+parms.iz.3 <- c(parms.iz,rho.i = rho.i.3, rho.n = rho.n.3)
+parms.iz.4 <- c(parms.iz,rho.i = rho.i.4, rho.n = rho.n.4)
+
+#solve the differential equations
+#I0 and Z0 are initial frequencies of infected plants and innocualtive vectors
+IZ.out.0 <- ode(c(I0 = 0, Z0 = 0.01), time, IZdyn, parms.iz.0)
+IZ.out.1 <- ode(c(I0 = 0, Z0 = 0.01), time, IZdyn, parms.iz.1)
+IZ.out.2 <- ode(c(I0 = 0, Z0 = 0.01), time, IZdyn, parms.iz.2)
+IZ.out.3 <- ode(c(I0 = 0, Z0 = 0.01), time, IZdyn, parms.iz.3)
+IZ.out.4 <- ode(c(I0 = 0, Z0 = 0.01), time, IZdyn, parms.iz.4)
+```
+
+\bigskip
+
+Spread of the bacteria in the host for different bacteria-influenced vector preferences as observed in tomato as reported by Mas et al. (2014): infectious vectors prefer healthy hosts ($\rho_+>1$) while non-infectious vectors prefer infected hosts ($\rho_+<1$, $\rho_->1$). This is compared with the null expectation that there is no preference for either type of vector ($\rho_- = \rho_+ = 1$). 
+
+\bigskip
+```{r, echo=FALSE}
+plot(time, IZ.out.0[,2],type = "l", ylab = "Proportion Infected Hosts", xlab = "Day", lwd=2, col = "darkblue", main = "Effect of Conditional Vector Preference on Disease Spread")
+#points(time,IZ.out.1[,2],type = "l",col = "purple")
+points(time,IZ.out.2[,2],type = "l",lwd=2,col = "green")
+#points(time,IZ.out.3[,2],type = "l",col = "red")
+#points(time,IZ.out.4[,2],type = "l",col = "lightblue")
+legend("bottomright",c(expression(rho["+"]~" = "~rho["-"]~"= 1"),expression(rho["+"]~"< 1, "~rho["-"]~"> 1")),lty=1,lwd=2,col=c("darkblue","green"),bty="n")
+```
+
+\section{} 
+**Economic Value of Vector Treatment**
+
+```{r, echo=FALSE}
+#####################################################
+#yield given treatment at time t
+
+# per capita yield if infected at time t
+# modeled as a sigmoidal curve - from Dick's EconomicValuefits.pdf
+c <- 1.084
+alpha <- 511.15
+k <- 1.68453
+X <- function(t,alpha=alpha,k=k,c=c){
+  #k determines the maximal steepness of increase
+  #alpha is the the abscissa corresponding to ordinate value 1/2
+  (c*t^k)/((alpha) + (t^k))
+}
+```
+
+This function approximates what has been reported for Lso in potato (Rashed et al. 2014). 
+
+```{r, echo=FALSE}
+plot(time,X(t=time,alpha=alpha,k=k,c=c),type="l",ylab="relative per capita yield",xlab="days post emergence")
+```
+
+Projected relative yields:
+
+```{r, echo=FALSE}
+## Solve simultaneously for I, Z, and Y
+IZYdyn <- function(t, y, p){
+	I <- y[1]
+	Z <- y[2]
+	Y <- y[3]
+	with(as.list(p),{
+		dI.dt <- phi.p*Z*(1-I)/(1-I+I*rho.i)
+		dZ.dt <- phi.v*(1-Z)*I*rho.n/(1-I+I*rho.n)
+    dY.dt <- (X(t,alpha=alpha,k=k,c=c)-1)*dI.dt
+		return(list(c(dI.dt, dZ.dt,dY.dt)))
+		})
+	}
+
+# parameter values
+
+# shared parameters
+phi.p <- 0.1	#virus-to-plant transmission
+phi.v <- 0.1 #plant-to-virus transmission
+last.time <- 200 #last day of season
+time <- seq(0,last.time, by = 0.1) #time points during growing season
+parms.shared <- c(alpha = alpha, k = k,phi.p = phi.p, phi.v = phi.v)
+
+# case 0: no host preference by either vector state
+rho.i.0 <- 1
+rho.n.0 <- 1
+# case 1: Infectious vectors prefer infected plants and noninfectious vectors prefer healthy plants - PLRV values from Roosien et al.
+rho.i.1 <- 3.2
+rho.n.1 <- 0.5
+# case 2: Infectious vectors prefer healthy plants and noninfectious vectors prefer inftected plants
+rho.i.2 <- 0.5
+rho.n.2 <- 3.2
+# case 3: All prefer healthy plants
+rho.i.3 <- 0.5
+rho.n.3 <- 0.5
+# case 4: All prefer infected plants
+rho.i.4 <- 3.2
+rho.n.4 <- 3.2
+
+parms.izy.0 <- c(parms.shared,rho.i = rho.i.0, rho.n = rho.n.0)
+parms.izy.1 <- c(parms.shared,rho.i = rho.i.1, rho.n = rho.n.1)
+parms.izy.2 <- c(parms.shared,rho.i = rho.i.2, rho.n = rho.n.2)
+parms.izy.3 <- c(parms.shared,rho.i = rho.i.3, rho.n = rho.n.3)
+parms.izy.4 <- c(parms.shared,rho.i = rho.i.4, rho.n = rho.n.4)
+
+#solve the differential equations
+#I0 and Z0 are initial frequencies of infected plants and innoculative vectors
+#Initial yield for treatment is equal to the max
+IZY.out.0 <- ode(c(I0 = 0, Z0 = 0.01, Y0=1), time, IZYdyn, parms.izy.0)
+IZY.out.1 <- ode(c(I0 = 0, Z0 = 0.01, Y0=1), time, IZYdyn, parms.izy.1)
+IZY.out.2 <- ode(c(I0 = 0, Z0 = 0.01, Y0=1), time, IZYdyn, parms.izy.2)
+IZY.out.3 <- ode(c(I0 = 0, Z0 = 0.01, Y0=1), time, IZYdyn, parms.izy.3)
+IZY.out.4 <- ode(c(I0 = 0, Z0 = 0.01, Y0=1), time, IZYdyn, parms.izy.4)
+
+#peek at initial 10 steps of output to see if it makes numerical sense
+#IZY.out[1:10,]
+
+treat.cost <- 0.85
+plot(time, IZY.out.0[,4],type = "l", ylab = "Relative Yield",xlab = "Day of Treatment",  lwd=2, col = "darkblue",
+     ylim = c(0,1),main = "Effect of Vector Preferences on Yield")
+#points(time,IZY.out.1[,4],type = "l",lty=1, col = "purple")
+points(time,IZY.out.2[,4],type = "l",lty=1, lwd=2,col = "green")
+#points(time,IZY.out.3[,4],type = "l",lty=1, col = "red")
+#points(time,IZY.out.4[,4],type = "l",lty=1, col = "green")
+#abline(h=treat.cost,lty=3)
+legend("topright",c(expression(rho["+"]~" = "~rho["-"]~"= 1"),expression(rho["+"]~"< 1, "~rho["-"]~"> 1")),lty=1,lwd=2,col=c("darkblue","green"),bty="n")
+```
+
+Preventable yield loss
+
+
+```{r, echo=F}
+minyield.0 <- IZY.out.0[dim(IZY.out.0)[1],4]
+minyield.1 <- IZY.out.1[dim(IZY.out.1)[1],4]
+minyield.2 <- IZY.out.2[dim(IZY.out.2)[1],4]
+minyield.3 <- IZY.out.3[dim(IZY.out.3)[1],4]
+minyield.4 <- IZY.out.4[dim(IZY.out.4)[1],4]
+
+plot(time, IZY.out.0[,4]-minyield.0,type = "l",ylim = c(0,1), ylab = "Preventable Yield Loss",xlab = "Day of Treatment",lwd=2,col = "darkblue",main = "Effect of Vector Preferences on Preventable Yield Loss by Spraying")
+#points(time,IZY.out.1[,4]-minyield.1,type = "l",col="green")
+points(time,IZY.out.2[,4]-minyield.2,lwd=2,type = "l",col="green")
+#points(time,IZY.out.3[,4]-minyield.3,type = "l",col="red")
+#points(time,IZY.out.4[,4]-minyield.4,type = "l",col="green")
+legend("topright",c(expression(rho["+"]~" = "~rho["-"]~"= 1"),expression(rho["+"]~"< 1, "~rho["-"]~"> 1")),lty=1,lwd=2,col=c("darkblue","green"),bty="n")
+```
+
+```{r, echo=F}
+max.income <- 1635
+treat.cost <- 350
+```
+
+Returns for spraying
+
+```{r, echo=F}
+
+plot(time, max.income*(IZY.out.0[,4]-minyield.0)-treat.cost,type = "l",lwd=2,col = "darkblue",ylim = c(-treat.cost,0.8*max.income), ylab = "Returns ($ per acre)",xlab = "Day of Treatment",main = "Effect of Vector Preferences on Returns for Spraying")
+#points(time, max.income*(IZY.out.1[,4]-minyield.1)-treat.cost,type = "l",col="purple")
+points(time,max.income*(IZY.out.2[,4]-minyield.2)-treat.cost,type = "l",lwd=2,col="green")
+#points(time,max.income*(IZY.out.3[,4]-minyield.3)-treat.cost,type = "l",col="red")
+#points(time,max.income*(IZY.out.4[,4]-minyield.4)-treat.cost,type = "l",col="green")
+#legend("topright",c(expression(rho["+"]~" = "~rho["-"]~"= 1"), expression(rho["+"]~"> 1, "~rho["-"]~"< 1"),expression(rho["+"]~"< 1, "~rho["-"]~"> 1"),expression(rho["+"]~" = "~rho["-"]~"< 1"),expression(rho["+"]~" = "~rho["-"]~"> 1")),lty=1,col=c("darkblue","purple","lightblue","red","green"),bty="n")
+abline(h=0,lty=2)
+legend("topright",c(expression(rho["+"]~" = "~rho["-"]~"= 1"),expression(rho["+"]~"< 1, "~rho["-"]~"> 1")),lty=1,lwd=2,col=c("darkblue","green"),bty="n")
+
+```
+
+
+# PLRV in Potato
+
+## Parameters and sources
+$\rho_+$ = 3, $\rho_-$=0.33, are based on Rajabaskar et al. (2014) for preference for potato plants (Russet Burbank) infected by *Potato leaf roll virus* by *Myzus persicae* before and after it has acquired the pathogen. The age-related tolerance or resistance function - is nonlinear: Y = 1-exp(.0030t) where Y is relative yield and t is days, estimated based on data from Difonzo et al. (1994).
+
+Net returns per acre are based on enterprise budgets accessed through AgBiz Logic, https://www.agbizlogic.com, Seavert et al. Oregon State University:  
+  
+  Yield: 450 cwt  
+  Price: $7.25  
+  Value/acre: $3,080  
+  Expenses/acre-chemicals:$1,635  
+  Cost for treatment: $350
+ 
+### plots
+```{r, echo=F}
+
+#parameter values common to all cases
+
+phi.p <- 0.1	#vector-to-plant transmission
+phi.v <- 0.1 #plant-to-vector transmission
+#
+
+last.time <- 200 #last day of season
+time <- seq(0,last.time, by = 0.1) #time points during growing season
+
+
+#####################################################
+#infection dynamics
+
+IZdyn <- function(t, y, p){
+	I <- y[1]
+	Z <- y[2]
+	with(as.list(p),{
+		dI.dt <- phi.p*Z*(1-I)/(1-I+I*rho.i)
+		dZ.dt <- phi.v*(1-Z)*I*rho.n/(1-I+I*rho.n)
+		return(list(c(dI.dt, dZ.dt)))
+		})
+	}
+
+#parameter values
+parms.iz <- c(phi.p = phi.p, phi.v = phi.v)
+
+# case 0: no host preference by either vector state
+rho.i.0 <- 1.0
+rho.n.0 <- 1.0
+# case 1: Infectious vectors prefer infected plants and noninfectious vectors prefer healthy plants - PLRV values from Roosien et al.
+rho.i.1 <- 3.2
+rho.n.1 <- 0.5
+# case 2: Infectious vectors prefer healthy plants and noninfectious vectors prefer infected plants LSO
+rho.i.2 <- 0.44
+rho.n.2 <- 2.33
+# case 3: All prefer healthy plants
+rho.i.3 <- 0.5
+rho.n.3 <- 0.5
+# case 4: All prefer infected plants
+rho.i.4 <- 3.2
+rho.n.4 <- 3.2
+
+parms.iz.0 <- c(parms.iz,rho.i = rho.i.0, rho.n = rho.n.0)
+parms.iz.1 <- c(parms.iz,rho.i = rho.i.1, rho.n = rho.n.1)
+parms.iz.2 <- c(parms.iz,rho.i = rho.i.2, rho.n = rho.n.2)
+parms.iz.3 <- c(parms.iz,rho.i = rho.i.3, rho.n = rho.n.3)
+parms.iz.4 <- c(parms.iz,rho.i = rho.i.4, rho.n = rho.n.4)
+
+#solve the differential equations
+#I0 and Z0 are initial frequencies of infected plants and innocualtive vectors
+IZ.out.0 <- ode(c(I0 = 0, Z0 = 0.01), time, IZdyn, parms.iz.0)
+IZ.out.1 <- ode(c(I0 = 0, Z0 = 0.01), time, IZdyn, parms.iz.1)
+IZ.out.2 <- ode(c(I0 = 0, Z0 = 0.01), time, IZdyn, parms.iz.2)
+IZ.out.3 <- ode(c(I0 = 0, Z0 = 0.01), time, IZdyn, parms.iz.3)
+IZ.out.4 <- ode(c(I0 = 0, Z0 = 0.01), time, IZdyn, parms.iz.4)
+```
+
+\bigskip
+
+Spread of the virus in the host for different virus-influenced vector preferences as observed in tomato as reported by Rajabaskar al. (2014): infectious vectors prefer healthy hosts ($\rho_+>1$) while non-infectious vectors prefer infected hosts ($\rho_+<1$, $\rho_->1$). This is compared with the null expectation that there is no preference for either type of vector ($\rho_- = \rho_+ = 1$). 
+
+\bigskip
+```{r, echo=FALSE}
+plot(time, IZ.out.0[,2],type = "l", ylab = "Proportion Infected Hosts", xlab = "Day", lwd=2, col = "darkblue", main = "Effect of Conditional Vector Preference on Disease Spread")
+#points(time,IZ.out.1[,2],type = "l",col = "purple")
+points(time,IZ.out.2[,2],type = "l",lwd=2,col = "green")
+#points(time,IZ.out.3[,2],type = "l",col = "red")
+#points(time,IZ.out.4[,2],type = "l",col = "lightblue")
+legend("bottomright",c(expression(rho["+"]~" = "~rho["-"]~"= 1"),expression(rho["+"]~"< 1, "~rho["-"]~"> 1")),lty=1,lwd=2,col=c("darkblue","green"),bty="n")
+```
+
+\section{} 
+**Economic Value of Vector Treatment**
+
+```{r, echo=FALSE}
+#####################################################
+#yield given treatment at time t
+
+# per capita yield if infected at time t
+# modeled as a sigmoidal curve - from Dick's EconomicValuefits.pdf
+c <- (-0.003)
+X <- function(t,c=c){
+  (1-exp(c*t))
+}
+
+last.time <- 200 #last day of season
+time <- seq(0,last.time, by = 0.1) #time points during growing season
+
+plot(time, X(t=time,c=c),type="l", ylab="relative per capita yield", xlab="days post emergence")
+
+```
+
+This function approximates what has been reported for Lso in potato (DiFonzo et al. 1994). 
+
+```{r, echo=FALSE}
+plot(time,X(t=time,c=c),type="l",ylab="relative per capita yield",xlab="days post emergence")
+
+```
+
+Projected relative yields:
+
+```{r, echo=FALSE}
+## Solve simultaneously for I, Z, and Y
+IZYdyn <- function(t, y, p){
+	I <- y[1]
+	Z <- y[2]
+	Y <- y[3]
+	with(as.list(p),{
+		dI.dt <- phi.p*Z*(1-I)/(1-I+I*rho.i)
+		dZ.dt <- phi.v*(1-Z)*I*rho.n/(1-I+I*rho.n)
+	 dY.dt <- (X(t,c=c)-1)*dI.dt
+		return(list(c(dI.dt, dZ.dt,dY.dt)))
+		})
+	}
+
+# parameter values
+
+# shared parameters
+phi.p <- 0.1	#virus-to-plant transmission
+phi.v <- 0.1 #plant-to-virus transmission
+last.time <- 200 #last day of season
+time <- seq(0,last.time, by = 0.1) #time points during growing season
+parms.shared <- c(alpha = alpha, k = k,phi.p = phi.p, phi.v = phi.v)
+
+# case 0: no host preference by either vector state
+rho.i.0 <- 1
+rho.n.0 <- 1
+# case 1: Infectious vectors prefer infected plants and noninfectious vectors prefer healthy plants - PLRV values from Roosien et al.
+rho.i.1 <- 3.2
+rho.n.1 <- 0.5
+# case 2: Infectious vectors prefer healthy plants and noninfectious vectors prefer inftected plants
+rho.i.2 <- 0.5
+rho.n.2 <- 3.2
+# case 3: All prefer healthy plants
+rho.i.3 <- 0.5
+rho.n.3 <- 0.5
+# case 4: All prefer infected plants
+rho.i.4 <- 3.2
+rho.n.4 <- 3.2
+
+parms.izy.0 <- c(parms.shared,rho.i = rho.i.0, rho.n = rho.n.0)
+parms.izy.1 <- c(parms.shared,rho.i = rho.i.1, rho.n = rho.n.1)
+parms.izy.2 <- c(parms.shared,rho.i = rho.i.2, rho.n = rho.n.2)
+parms.izy.3 <- c(parms.shared,rho.i = rho.i.3, rho.n = rho.n.3)
+parms.izy.4 <- c(parms.shared,rho.i = rho.i.4, rho.n = rho.n.4)
+
+#solve the differential equations
+#I0 and Z0 are initial frequencies of infected plants and innoculative vectors
+#Initial yield for treatment is equal to the max
+IZY.out.0 <- ode(c(I0 = 0, Z0 = 0.01, Y0=1), time, IZYdyn, parms.izy.0)
+IZY.out.1 <- ode(c(I0 = 0, Z0 = 0.01, Y0=1), time, IZYdyn, parms.izy.1)
+IZY.out.2 <- ode(c(I0 = 0, Z0 = 0.01, Y0=1), time, IZYdyn, parms.izy.2)
+IZY.out.3 <- ode(c(I0 = 0, Z0 = 0.01, Y0=1), time, IZYdyn, parms.izy.3)
+IZY.out.4 <- ode(c(I0 = 0, Z0 = 0.01, Y0=1), time, IZYdyn, parms.izy.4)
+
+#peek at initial 10 steps of output to see if it makes numerical sense
+#IZY.out[1:10,]
+
+treat.cost <- 0.85
+plot(time, IZY.out.0[,4],type = "l", ylab = "Relative Yield",xlab = "Day of Treatment",  lwd=2, col = "darkblue",
+     ylim = c(0,1),main = "Effect of Vector Preferences on Yield")
+#points(time,IZY.out.1[,4],type = "l",lty=1, col = "purple")
+points(time,IZY.out.2[,4],type = "l",lty=1, lwd=2,col = "green")
+#points(time,IZY.out.3[,4],type = "l",lty=1, col = "red")
+#points(time,IZY.out.4[,4],type = "l",lty=1, col = "green")
+#abline(h=treat.cost,lty=3)
+legend("topright",c(expression(rho["+"]~" = "~rho["-"]~"= 1"),expression(rho["+"]~"< 1, "~rho["-"]~"> 1")),lty=1,lwd=2,col=c("darkblue","green"),bty="n")
+```
+
+Preventable yield loss
+
+
+```{r, echo=F}
+minyield.0 <- IZY.out.0[dim(IZY.out.0)[1],4]
+minyield.1 <- IZY.out.1[dim(IZY.out.1)[1],4]
+minyield.2 <- IZY.out.2[dim(IZY.out.2)[1],4]
+minyield.3 <- IZY.out.3[dim(IZY.out.3)[1],4]
+minyield.4 <- IZY.out.4[dim(IZY.out.4)[1],4]
+
+plot(time, IZY.out.0[,4]-minyield.0,type = "l",ylim = c(0,1), ylab = "Preventable Yield Loss",xlab = "Day of Treatment",lwd=2,col = "darkblue",main = "Effect of Vector Preferences on Preventable Yield Loss by Spraying")
+#points(time,IZY.out.1[,4]-minyield.1,type = "l",col="green")
+points(time,IZY.out.2[,4]-minyield.2,lwd=2,type = "l",col="green")
+#points(time,IZY.out.3[,4]-minyield.3,type = "l",col="red")
+#points(time,IZY.out.4[,4]-minyield.4,type = "l",col="green")
+legend("topright",c(expression(rho["+"]~" = "~rho["-"]~"= 1"),expression(rho["+"]~"< 1, "~rho["-"]~"> 1")),lty=1,lwd=2,col=c("darkblue","green"),bty="n")
+```
+
+```{r, echo=F}
+max.income <- 1635
+treat.cost <- 350
+```
+
+Returns for spraying
+
+```{r, echo=F}
+
+plot(time, max.income*(IZY.out.0[,4]-minyield.0)-treat.cost,type = "l",lwd=2,col = "darkblue",ylim = c(-treat.cost,0.8*max.income), ylab = "Returns ($ per acre)",xlab = "Day of Treatment",main = "Effect of Vector Preferences on Returns for Spraying")
+#points(time, max.income*(IZY.out.1[,4]-minyield.1)-treat.cost,type = "l",col="purple")
+points(time,max.income*(IZY.out.2[,4]-minyield.2)-treat.cost,type = "l",lwd=2,col="green")
+#points(time,max.income*(IZY.out.3[,4]-minyield.3)-treat.cost,type = "l",col="red")
+#points(time,max.income*(IZY.out.4[,4]-minyield.4)-treat.cost,type = "l",col="green")
+#legend("topright",c(expression(rho["+"]~" = "~rho["-"]~"= 1"), expression(rho["+"]~"> 1, "~rho["-"]~"< 1"),expression(rho["+"]~"< 1, "~rho["-"]~"> 1"),expression(rho["+"]~" = "~rho["-"]~"< 1"),expression(rho["+"]~" = "~rho["-"]~"> 1")),lty=1,col=c("darkblue","purple","lightblue","red","green"),bty="n")
+abline(h=0,lty=2)
+legend("topright",c(expression(rho["+"]~" = "~rho["-"]~"= 1"),expression(rho["+"]~"< 1, "~rho["-"]~"> 1")),lty=1,lwd=2,col=c("darkblue","green"),bty="n")
+
+```
+
+## References
+
+Mas, F., Vereijsse, J. and Suckling, D.M. (2014) Influence of the pathogen *Candidatus* Liberibacter solanacearum on tomato hostplant volatiles and psyllid vector settlement. Journal of Chemical Ecology 40: 1197-1202. 
+
+Paudel, S., Bechinski, E.J., Stokes, B.S., Pappu, H.R. and Eigenbrode, S.D. (2018) Deriving economic models for pea aphid (Hemiptera: Aphididae) as a direct-pest and a virus-vector on commercial lentils. Journal of Economic Entomology 10.1093/jee/toy1188.
+
+Rashed, A., Workneh, F., Paetzold, L., Gray, J. and Rush, C.M. (2014) Zebra chip disease development in relation to plant age and time of ‘*Candidatus* Liberibacter solanacearum’ infection. Plant Disease 98:24-31.  
+
+Roosien, B.K., R. Gomulkiewicz, L.L. Ingwell, N.A. Bosque-Perez, D. Rajabaskar, and S. Eigenbrode (2013) Conditional Vector Preference Aids the Spread of Plant Pathogens:Results From a Model. Environmental Entomology 42(6):1299-1308. DOI: http://dx.doi.org/10.1603/EN13062 
+
+Seavert, C. (2018). AgBiz Logic (on line decision support tool suite for producers), Oregon State University, https://www.agbizlogic.com, Accessed Nov. 4, 2018.
+
+Sisterson, M.S. (2008) Effects of insect-vector preference for healthy or infected plants on pathogen spread: Insights from a model. Journal of Economic Entomology 101: 1-8.
+
+Sisterson, M.S. (2009) Transmission of insect-vectored pathogens: Effects of vector fitness as a function of infectivity status. Environmental Entomology 38: 345-355.
+
+
+
+
+
+

@@ -1,0 +1,212 @@
+---
+title: "Economics with Virus-influenced Vector Preferences and Birth Rates and Spray Treatments: Framework #2"
+author: "Richard Gomulkiewicz, Sanford Eigenbrode"
+date: "Dec 2020"
+output:
+  pdf_document: default
+  html_document: default
+  word_document: default
+---
+
+```{r, echo=F,message=F, warning=F}
+## Turn scientific notation off for printing
+options(scipen = 999)
+## Load the deSolve library		
+library(deSolve)
+```
+
+\section{Sisterson Model with Spraying}
+
+We use a modified version of the Sisterson model for the population dynamics of susceptible $S$ and infected $I$ vectors and the proportion $D$ of diseased hosts. Vector densities are scaled in units of the ``death free'' vector carrying capacity.  All newborns are assumed to be virus-free. The term $IM$ represents newly immigrating vectors, assumed here to be 50% infectious and 50% noninfectious. This can be modified based on measurements.
+
+\begin{subequations} \label{unconditional}
+\begin{align}
+\frac{dD}{dt} & = a \frac{(1-D)}{1-D+ D\rho_+}I \\
+\frac{dS}{dt} & = \left[ b_- (1-D) + D b_+ \right] T(1-T) - \delta S - \lambda \frac{D\rho_-}{1-D + D\rho_-} S + IM\\
+\frac{dI}{dt} & = \lambda \frac{D\rho_-}{1-D + D\rho_-} S - \delta I + IM.
+\end{align}
+\end{subequations}
+where $T = S + I$.
+
+The model can be run assuming vector birth rates are the same on healthy and infected host plants ($b_I=b$) and vectors have no host preference ($\rho_- = \rho_+ = 1$). These terms can be modified to reflect known or hypothesized manipulation effects on vectors by the pathogen.
+
+Each spray treatment instantaneously reduces the densities of vectors by the factor $1-m$. 
+
+\bigskip
+
+\subsection{Economics}
+
+```{r, echo=FALSE}
+# per capita yield if infected at time t
+# modeled as a sigmoidal curve
+k <- 1.68453
+alpha <- 511.15
+X <- function(t,alpha=alpha,k=k){
+  #k determines the maximal steepness of increase
+  #alpha^(1/k) is the the abscissa corresponding to ordinate value 1/2
+  (t^k)/((alpha) + (t^k))
+}
+```
+
+Let $X(t)$ be the per capita yield of a plant infected at time $t$ relative to the maximum acheivable ($0\le X(t) \le 1)$.  We use a sigmoidal curve \(X(t) = t^k/(t^k + \alpha)\) which reaches half its maximum value at $t = \alpha^{1/k}$. The parameter $k > 0$ determines the maximum steepness.
+
+```{r, echo=FALSE}
+last.time <- 150 # 210 #last day of season
+
+time <- seq(0,last.time, by = 0.1) #time points during growing season
+```
+
+
+The total relative yield over a season of length $L$, $Y$, is
+\begin{equation} \label{yield}
+Y = \int_0^L X(\tau) \frac{dD}{dt}(\tau) d\tau + 1-D(L).
+\end{equation}
+
+To compute $Y$, we solve the initial value problem 
+
+\begin{equation} \label{yield.ivp}
+\frac{dy}{dt} = (X-1) \frac{dD}{dt} = (X-1)\frac{a (1-D)I}{1-D+D\rho_+}
+\end{equation}
+
+with initial value $y(0) = 1$ simultaneously with equations (\ref{unconditional}) over the intervals $0 \le t \le L$. Then $Y = y(L)$.
+
+```{r, echo=FALSE}
+## Solve simultaneously for D, S, and I, with different birth rates
+
+DSIYdyn.cond <- function(t, y, p){
+	D <- y[1]
+	S <- y[2]
+	I <- y[3]
+	Y <- y[4]
+	with(as.list(p),{
+		dD.dt <- a*(1-D)*I/(1-D+D*rho.i)
+	  dS.dt <- (b*(1-D)+bi*D)*(S+I)*(1-S-I) - delta*S - lambda*D*rho.n*S/(1-D+D*rho.n) + IM
+		dI.dt <-  lambda*D*rho.n*S/(1-D+D*rho.n) - delta*I + IM
+	  dY.dt <- (X(t,alpha=alpha,k=k)-1)*dD.dt
+ 		return(list(c(dD.dt, dS.dt,dI.dt,dY.dt)))
+		})
+}
+
+#initial conditions
+D0 <- 0 #disease free
+S0 <- 0.01 #1% of carrying capacity
+I0 <- 0.01*S0 #1% of susceptible density
+Y0 <- 1
+
+#parameters
+
+a <- 0.2	#inoculation rate (based on Buchman et al. 2011)
+delta <- 0.003 #vector death rate, estimated from longevity reported in Yang et al. 2010
+lambda <- 0.2 #acquisition rate
+
+#no preference
+rho.i <- 1 #1.0
+rho.n <- 1 #1.0
+
+# case b1: b = bi
+b <- .1015# this value is from Yang et al. (2010), Table 5
+bi <- .07#b
+
+# immigrating psyllids
+IM <- .01
+
+parms <- c(a = a, delta = delta, lambda = lambda, rho.i = rho.i, rho.n = rho.n, b = b, bi = bi, IM = IM)
+
+#instantaneous mortality caused by spray treatment
+m <- 0.9 
+
+#spray treatment dates
+spray.days <- c(14,21,28) #(14, 21, 28)
+
+sprayfun <- function(t,y,parms){
+  with(as.list(y),{
+    y[1] <- y[1]
+    y[2] <- (1-m)*y[2]
+    y[3] <- (1-m)*y[3]
+    y[4] <- y[4]
+    return(y)
+    })
+}
+
+# out <- ode(c(D0=D0, S0=S0, I0=I0), time, DSIdyn.cond, parms=parms,
+#           events = list(func = sprayfun, time = spray.days))
+out <- ode(c(D0=D0, S0=S0, I0=I0, Y0=Y0), time, DSIYdyn.cond, parms=parms,
+           events = list(func = sprayfun, time = spray.days))
+
+#same scenario but with no spraying
+# out.nospray <- ode(c(D0=D0, S0=S0, I0=I0), time, DSIdyn.cond, parms=parms)
+out.nospray <- ode(c(D0=D0, S0=S0, I0=I0, Y0=Y0), time, DSIYdyn.cond, parms=parms)
+
+#total yield
+L.index <- length(out[,1]) #index value for last day of season
+yield <- out[L.index,5]
+yield.no.spray <- out.nospray[L.index,5]
+```
+
+**Parameter Values**\
+$L = `r last.time`$ growing season length (days)\
+$a = `r a`$ vector-to-host transmission rate\
+$\rho_+ = `r rho.i`$ relative preference (infected)\
+$\rho_{-} = `r rho.n`$  relative preference (uninfected) \
+$b = `r b`$  birth rate on healthy hosts\
+$b_i = `r bi`$  birth rate on diseased hosts \
+$\lambda = `r lambda`$ host-to-vector transmission rate \
+$\delta = `r delta`$ vector death rate \
+$\alpha = `r alpha`$ determines day at half-maximal per capita yield of a diseased host \
+$k = `r k`$ steepness of per capita yield curve\
+$IM = `r IM`$ immigration rates of $I$ and $S$
+
+
+$m = `r m`$ vector mortality caused by single spray treatment
+
+
+```{r, echo=FALSE}
+max.yield.per.plant <- 1 # 1.084
+spray.cost <- 50
+max.value <- 3080
+fixed.cost <- 1635
+treat.cost <- spray.cost*length(spray.days)
+net <- max.value*max.yield.per.plant*yield - treat.cost - fixed.cost 
+net.no.treat <- max.value*max.yield.per.plant*yield.no.spray - fixed.cost 
+```
+
+**Yields**\
+Spray Day(s): `r spray.days`
+
+Maximum achievable yield per plant: $c = `r max.yield.per.plant`$\
+Total relative yield with Spraying: $Y = `r round(max.yield.per.plant*yield,4)`$ \
+Total relative yield without Spraying $Y = `r round(max.yield.per.plant*yield.no.spray,4)`$ \
+Yield gain from spraying: $`r round(100*(yield - yield.no.spray)/yield.no.spray, 2)`$\%
+
+Based on current estimates:\
+Fixed costs per acre: \$`r round(fixed.cost,0)`\
+Total cost of treatments per acre: \$`r treat.cost`\
+Net per acre with treatment: \$`r round(net,0)`\
+Net per acre with no treatment: \$`r round(net.no.treat,0)`\
+Economic gain per acre from treatment: \$`r round((net-net.no.treat),0)`\/acre, or `r round(100*(net - net.no.treat)/net.no.treat, 2)`\%
+
+\subsubsection{Per capita yield of a plant infected at time $t$, $X(t)$}
+```{r, echo=FALSE}
+# per capita yield if infected at time t
+plot(time,X(t=time,alpha=alpha,k=k),type="l",ylab="relative per capita yield",xlab="days post emergence")
+```
+
+\subsubsection{Disease and Vector dynamics}
+```{r, echo=FALSE}
+#Plots of Disease and Vector Dynamics
+
+plot(time, out[,2],type = "l", ylab = "Proportion Diseased Hosts", xlab = "Day", col = 1, ylim = c(0,1))
+points(time,out.nospray[,2],type = "l",col = 2)
+legend("topleft",c("treated","untreated"),lty=1,lwd=2,col=1:2,bty="n",cex=0.75)
+
+matplot(time, cbind(out[,3], out[,4],out[,3]+out[,4]), type = "l", lty=1, ylab = "Relative Density", xlab = "Day", col = 3:1, main = "Vectors with Spraying")
+legend("topleft",c("virus free","infected","total"),lty=1,lwd=2,col=3:1,bty="n",cex=0.75)
+
+matplot(time, cbind(out.nospray[,3], out.nospray[,4],out.nospray[,3]+out.nospray[,4]), type = "l", lty=1, ylab = "Relative Density", xlab = "Day", col = 3:1, main = "Vectors without Spraying")
+legend("topleft",c("virus free","infected","total"),lty=1,lwd=2,col=3:1,bty="n",cex=0.75)
+
+```
+
+Buchman JL, Sengoda VG & Munyaneza JE (2011) Vector transmission efficiency of beribacter by $Bactericera$ $cockerelli$ (Hemiptera: Triozidae) in zebra chip potato disease: effects of psyllid life stage and inoculation access period. Journal of Economic Entomology 104: 1486-1495. doi:10.1603/ec11123
+
+Yang X-B, Zhang Y-M, Hua L & Liu T-X (2010) Life history and life tables of $Bactericera$ $cockerelli$ (Hemiptera: Psyllidae) on potato under laboratory and field conditions in the Lower Rio Grande Valley of Texas. Journal of Economic Entomology 103: 1729-1734. doi:10.1603/ec10083.
